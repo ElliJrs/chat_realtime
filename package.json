@@ -1,0 +1,8 @@
+{
+  "name": "chat-realtime",
+  "version": "1.0.0",
+  "scripts": {},
+  "dependencies": {
+    "pusher": "^6.0.0"
+  }
+}
