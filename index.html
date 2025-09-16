@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Chat Online (Realtime)</title>
+<!-- Pusher JS (client) -->
+<script src="https://js.pusher.com/8.0/pusher.min.js"></script>
+<style>
+  :root{--bg:#f4f6f8;--accent:#0b93f6;--me:#dcf8c6;--them:#ffffff;}
+  *{box-sizing:border-box}
+  body{font-family:Inter, system-ui, Arial; background:var(--bg); margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;}
+  .app{width:800px; max-width:3020px; height:90vh; display:flex; flex-direction:column; box-shadow:0 6px 20px rgba(0,0,0,.08); border-radius:12px; overflow:hidden; background:#fff;}
+  .header{height:72px; background:var(--accent); color:#fff; display:flex; align-items:center; padding:0 16px; gap:12px;}
+  .header h1{font-size:16px;margin:0}
+  .messages{flex:1; padding:16px; overflow-y:auto; background:linear-gradient(#f7f9fb, #fff); display:flex; flex-direction:column; gap:10px;}
+  .msg{max-width:75%; padding:10px 12px; border-radius:10px; box-shadow:0 1px 0 rgba(0,0,0,.03);}
+  .msg.me{align-self:flex-end; background:var(--me); border-bottom-right-radius:2px; text-align:right;}
+  .msg.them{align-self:flex-start; background:var(--them);}
+  .meta{font-size:11px; color:#666; margin-bottom:6px;}
+  .composer{height:72px; padding:10px; display:flex; gap:10px; align-items:center; border-top:1px solid #eee; background:#fafafa;}
+  .composer input{flex:1; padding:12px; border-radius:999px; border:1px solid #ddd; font-size:15px;}
+  .composer button{padding:10px 14px; border-radius:10px; background:var(--accent); color:#fff; border:0; cursor:pointer;}
+  .user-bubble {font-weight:600; margin-bottom:6px; font-size:12px;}
+  .time {display:block; font-size:11px; color:#666; margin-top:6px;}
+</style>
+</head>
+<body>
+  <div class="app" id="app">
+    <div class="header">
+      <div>
+        <h1>Chat Online</h1>
+        <div style="font-size:12px;opacity:.9">Conectado via Pusher</div>
+      </div>
+    </div>
+
+    <div id="messages" class="messages"></div>
+
+    <div class="composer">
+      <input id="name" placeholder="Seu nome (ex: Lucas)" value="Você" />
+      <input id="text" placeholder="Digite uma mensagem..." />
+      <button id="sendBtn">Enviar</button>
+    </div>
+  </div>
+
+<script>
+/* CONFIGURAÇÃO:
+  - Defina no arquivo /api/message.js suas credenciais Pusher (server).
+  - No cliente, você precisa do "PUSHER_KEY" público e do cluster.
+  - Estas informações serão colocadas no código abaixo (ou em .env e injetadas pelo Vercel).
+*/
+
+/* === Substitua por suas credenciais ao fazer deploy (ou melhor: defina via Vercel env vars e injete no build) === */
+const PUSHER_KEY = 'e57b5af1ddef16a6b518';
+const PUSHER_CLUSTER = 'us2';
+const CHANNEL_NAME = 'chat-realtime'; // nome do canal
+
+// Inicializa Pusher (cliente)
+const pusher = new Pusher(PUSHER_KEY, {
+  cluster: PUSHER_CLUSTER,
+  forceTLS: true
+});
+
+const channel = pusher.subscribe(CHANNEL_NAME);
+
+const messagesEl = document.getElementById('messages');
+const inputText = document.getElementById('text');
+const inputName = document.getElementById('name');
+const sendBtn = document.getElementById('sendBtn');
+
+function appendMessage({name, text, time}, who){
+  const div = document.createElement('div');
+  div.className = 'msg ' + (who === 'me'? 'me':'them');
+  if(who !== 'me'){
+    const user = document.createElement('div'); user.className='user-bubble'; user.textContent = name || 'Anon'; div.appendChild(user);
+  }
+  const txt = document.createElement('div'); txt.textContent = text; div.appendChild(txt);
+  const tm = document.createElement('span'); tm.className='time'; tm.textContent = new Date(time).toLocaleTimeString(); div.appendChild(tm);
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// Ouvir evento 'message' vindo do Pusher
+channel.bind('message', function(data) {
+  // quando chegar mensagem, insere como "them" se não for do mesmo nome
+  const myName = (inputName.value || '').trim();
+  const who = (data.name && myName && data.name === myName) ? 'me' : 'them';
+  appendMessage(data, who);
+});
+
+// Enviar mensagem ao backend que disparará evento Pusher
+async function sendMessage() {
+  const text = inputText.value.trim();
+  const name = inputName.value.trim() || 'Anon';
+  if(!text) return;
+  const payload = { name, text };
+
+  // mostra localmente imediatamente (optimistic)
+  appendMessage({name,text,time: Date.now()}, 'me');
+  inputText.value='';
+
+  // envia para a função serverless que aciona o Pusher
+  try {
+    const resp = await fetch('/api/message', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if(!resp.ok){
+      console.error('Erro no envio', await resp.text());
+      // opcional: mostrar erro ao usuário
+    }
+  } catch(err){
+    console.error('Erro fetch', err);
+  }
+}
+
+sendBtn.addEventListener('click', sendMessage);
+inputText.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') sendMessage(); });
+
+/* Carregar mensagens iniciais:
+   - Se quiser histórico, crie /api/history que retorna últimas N mensagens do DB (Supabase/Postgres),
+     e então chame aqui para popular.
+*/
+</script>
+</body>
+</html>
