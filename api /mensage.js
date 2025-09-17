@@ -22,7 +22,7 @@ module.exports = async (req, res) => {
     const payload = { name: name || 'Anon', text, time: Date.now() };
 
     // Dispara evento para o canal público "public-chat"
-    await pusher.trigger('api', 'message', payload);
+    await pusher.trigger('chat-realtime', 'message', payload);
 
     // Opcional: aqui você pode gravar em DB (Supabase/Postgres)
     // Ex: await insertIntoDB(payload);
