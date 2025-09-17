@@ -118,10 +118,23 @@ async function sendMessage() {
 sendBtn.addEventListener('click', sendMessage);
 inputText.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') sendMessage(); });
 
-/* Carregar mensagens iniciais:
-   - Se quiser histórico, crie /api/history que retorna últimas N mensagens do DB (Supabase/Postgres),
-     e então chame aqui para popular.
-*/
+// Carregar histórico
+async function loadHistory() {
+  try {
+    const resp = await fetch('/api/message');
+    if(resp.ok){
+      const history = await resp.json();
+      history.forEach(msg => {
+        // Mostra todas como "them" se não for seu nome
+        const who = (msg.name === (inputName.value || '').trim()) ? 'me' : 'them';
+        appendMessage(msg, who);
+      });
+    }
+  } catch(err){
+    console.error('Erro ao carregar histórico', err);
+  }
+}
+loadHistory();
 </script>
 </body>
 </html>
